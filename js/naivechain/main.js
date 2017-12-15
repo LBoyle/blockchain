@@ -50,7 +50,7 @@ var initHttpServer = () => {
     res.send(sockets.map(s => s._socket.remoteAddress + ':' + s._socket.remotePort));
   });
   app.post('/addPeer', (req, res) => {
-    connectToPeers([req.body.peer]);!!
+    connectToPeers([req.body.peer]);
     res.send();
   });
   app.listen(http_port, () => console.log('Listening on port: ' + http_port));
