@@ -1,12 +1,3 @@
-const SHA256 = require('crypto-js/sha256');
-const express = require('express');
-const bodyParser = require('body-parser');
-const WebSocket = require('ws');
-
-const http_port = process.env.HTTP_PORT || 3001;
-const p2p_port = process.env.P2P_PORT || 6001;
-const initialPeers = process.env.PEERS ? process.env.PEERS.split(',') : [];
-
 class Block {
   constructor(index, previousHash, timestamp, data, hash) {
     this.index = index;
@@ -150,10 +141,4 @@ class P2PServer {
       'data': JSON.stringify([Blockchain.getLatestBlock()])
     }
   }
-};
-
-
-const something = (it) => {
-  if(it) return console.log('hello');
-  return console.log('not hello');
 };
