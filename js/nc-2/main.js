@@ -52,3 +52,108 @@ class Blockchain {
     return true;
   }
 };
+
+class HttpServer {
+  constructor(http_port || 3001) {
+    this.express = require('express');
+    this.bodyParser = require('body-parser');
+    this.morgan = require('morgan');
+    this.app = this.express();
+    this.app.use(this.bodyParser.json());
+    this.app.use(this.morgan('dev'));
+
+    this.app.get('/', (req, res) => {
+      return res.send('Hello!');
+    });
+    this.app.listen(http_port, () => console.log('Listening on port: ' + http_port));
+  }
+};
+
+class P2PServer {
+  constructor(p2p_port || 6001) {
+    this.sockets = [];
+    this.MessageType = {
+      QUERY_LATEST: 0,
+      QUERY_ALL: 1,
+      RESPONSE_BLOCKCHAIN: 2
+    }
+    this.WebSocket = require('ws');
+    this.server = new this.WebSocket.Server({port: p2p_port});
+    this.server.on('connection', ws => {
+      this.initConnection(ws);
+    });
+    console.log('Listening websocket p2p port on: ' + p2p_port);
+  }
+  write(ws, message) {
+    ws.send(JSON.stringify(message));
+  };
+  broadcast(message) {
+    sockets.forEach(socket => write(socket, message));
+  }
+  initConnection(ws) {
+    this.sockets.push(ws);
+    this.initMessageHandler(ws);
+    this.initErrorHandler(ws);
+    this.write(ws, this.queryChainLengthMsg());
+  }
+  initMessageHandler(ws) {
+    ws.on('message', (data) => {
+      var message = JSON.parse(data);
+      console.log('Received message' + JSON.stringify(message));
+      if(message.type === this.MessageType.QUERY_LATEST) return this.write(ws, this.responseLatestMsg());
+      if(message.type === this.MessageType.QUERY_ALL) return this.write(ws, this.responseChainMsg());
+      if(message.type === this.MessageType.RESPONSE_BLOCKCHAIN) return this.handleBlockchainResponse(message);
+      return console.log('Something went wrong in initMessageHandler');
+    });
+  }
+  handleBlockchainResponse(message) {
+    const receivedBlocks = JSON.parse(message.data).sort((b1, b2) => (b1.index - b2.index));
+    const latestBlockReceived = receivedBlocks[receivedBlocks.length - 1];
+    const latestBlockHeld = Blockchain.getLatestBlock();
+    if (latestBlockReceived.index > latestBlockHeld.index) {
+      console.log('blockchain possibly behind. We got: ' + latestBlockHeld.index + ' Peer got: ' + latestBlockReceived.index);
+      if (latestBlockHeld.hash === latestBlockReceived.previousHash) {
+        console.log("We can append the received block to our chain");
+        blockchain.push(latestBlockReceived);
+        this.broadcast(this.responseLatestMsg());
+      } else if (receivedBlocks.length === 1) {
+        console.log("We have to query the chain from our peer");
+        this.broadcast(this.queryAllMsg());
+      } else {
+        console.log("Received blockchain is longer than current blockchain");
+        this.replaceChain(receivedBlocks);
+      }
+    } else {
+      console.log('Received blockchain is not longer than received blockchain. Do nothing');
+    }
+  }
+  closeConnection(ws) {
+    console.log('connection failed to peer: ' + ws.url);
+    sockets.splice(sockets.indexOf(ws), 1);
+  }
+  initErrorHandler(ws) {
+    ws.on('close', () => this.closeConnection(ws));
+    ws.on('error', () => this.closeConnection(ws));
+  }
+  queryChainLengthMsg() {
+    return {'type': this.MessageType.QUERY_LATEST};
+  }
+  queryAllMsg() {
+    return {'type': this.MessageType.QUERY_ALL};
+  }
+  responseChainMsg() {
+    return {'type': this.MessageType.RESPONSE_BLOCKCHAIN, 'data': JSON.stringify(Blockchain.chain)};
+  }
+  responseLatestMsg() {
+    return {
+      'type': this.MessageType.RESPONSE_BLOCKCHAIN,
+      'data': JSON.stringify([Blockchain.getLatestBlock()])
+    }
+  }
+};
+
+
+const something = (it) => {
+  if(it) return console.log('hello');
+  return console.log('not hello');
+};
